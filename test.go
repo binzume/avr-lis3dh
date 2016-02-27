@@ -1,25 +1,3 @@
-
-
-３軸加速度センサ LIS3DH にAVRからSPIで接続するサンプル．
-
-http://akizukidenshi.com/catalog/g/gK-06791/
-
-
-シリアルからコマンドを受け付けてSPIに渡すだけです．
-
-```
-PC <--(シリアル)--> AVR <--(SPI)--> LIS3DH
-```
-
-近藤科学のB3Mシリーズのサーボモータと同一フォーマットのコマンドに返答します．(1.5Mbpsで通信するためにはAVRを12MHzで動作させる必要があります)
-
-
-Golangから使う場合：
-
-https://github.com/binzume/gob3m
-
-
-```go
 package main
 
 import (
@@ -54,8 +32,8 @@ func main() {
 		log.Fatal(err)
 	}
 
-	axd := 0
-	ayd := 0
+	axd := -37
+	ayd := 18
 	azd := 0
 
 	for {
@@ -72,8 +50,3 @@ func main() {
 	}
 	log.Printf("ok")
 }
-```
-
-GetServo()とかしてますがサーボモータではないので加速度の値が取れます．
-
-

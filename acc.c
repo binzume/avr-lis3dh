@@ -154,6 +154,7 @@ void init_uart() {
 uint8_t device_id;
 
 static uint8_t EEMEM eemem_devid = 0;
+static uint8_t PROGMEM pgm_version[] = {'A',1,10,10, 0,0,  'Z', 'Z', 0,0,0,1, 0,0,0,0 };
 
 int main(void) {
     DDRC = 0x00;
@@ -173,7 +174,7 @@ int main(void) {
     for (uint8_t count = 0;;count ++) {
         if (recv_ready()) {
             uint8_t len = recv_byte();
-            if (len < 32) {
+            if (len < 40) {
                 uint8_t buf[40];
                 len--;
                 readBytes(buf, len, UART_TIMEOUT);
@@ -184,8 +185,12 @@ int main(void) {
                         len = buf[4];
                         if (addr == 0) {
                             buf[4] = device_id;
-                        } else {
+                        } else if (addr < 0x40) {
                             lis3dh_read(&buf[4], addr, len);
+                        } else if (addr >= 0xA2) {
+                            for (uint8_t i = 0; i < len; i++) {
+                                buf[4+i] = pgm_read_byte(&pgm_version[i]);
+                            }
                         }
                         buf[0] = len + 5;
                         buf[1] = 0x80 | CMD_READ;
@@ -229,14 +234,15 @@ int main(void) {
                         writeBytes(buf, buf[0]);
                     }
                 } else {
-                    delay_ms(4);
-                    clear_rx_buf();
+                    // delay_ms(4);
+                    // clear_rx_buf();
                 }
             } else {
                 // debug
+                delay_ms(4);
+                send_byte(2);
                 send_byte(recv_byte());
                 uart_puts(".");
-                delay_ms(4);
                 clear_rx_buf();
             }
         } else {
