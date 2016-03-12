@@ -10,7 +10,7 @@ import (
 
 func main() {
 	var opt_port = flag.String("port", "COM1", "Serial port")
-	var opt_id = flag.Int("id", 0, "servo id")
+	var opt_id = flag.Int("id", 0, "device id")
 	flag.Parse()
 	offset := 0x10
 
@@ -47,7 +47,7 @@ func main() {
 		ayd = 18
 		azd = 0
 	} else if whoami[0] == 0xd4{
-		// L3GD20 Gyro(experimental)
+		// L3GD20 Gyro sensor(experimental)
 		err = servo.WriteMem(0x23 + offset, []byte{0x10}) // 00h:250dps 10h:500dps 20h:200dps
 		if err != nil {
 			log.Fatal(err)
@@ -61,7 +61,7 @@ func main() {
 		ayd = -15
 		azd = 3
 	} else {
-		// Unknown devie
+		// Unknown device
 		log.Fatal(whoami)
 	}
 
