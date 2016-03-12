@@ -1,79 +1,37 @@
 
 
-３軸加速度センサ LIS3DH にAVRからSPIで接続するサンプル．
+STマイクロエレクトロニクスの3軸加速度センサ LIS3DH にAVRからSPIで接続するサンプル．
+同じくSTマイクロのジャイロ L3GD20 も使えます．
 
-http://akizukidenshi.com/catalog/g/gK-06791/
 
+- LIS3DH http://akizukidenshi.com/catalog/g/gK-06791/
+- L3GD20 http://akizukidenshi.com/catalog/g/gK-06779/
 
-シリアルからコマンドを受け付けてSPIに渡すだけです．
+## 利用方法
 
 ```
-PC <--(シリアル)--> AVR <--(SPI)--> LIS3DH
+PC等 <--(シリアル)--> AVR <--(SPI)--> LIS3DH
 ```
+
+- TODO: 回路図
+- SPIで通信するのでSCK,MISO,MOSIをつないでください
+- PB1, PB2 をCSにつなぐことで2デバイス接続できます
+- シリアルからコマンドを受け付けます
 
 近藤科学のB3Mシリーズのサーボモータと同一フォーマットのコマンドに返答します．(1.5Mbpsで通信するためにはAVRを12MHzで動作させる必要があります)
 
 
-Golangから使う場合：
+### Golangから使う場合
 
-https://github.com/binzume/gob3m
-
-
-```go
-package main
-
-import (
-	"github.com/binzume/gob3m/b3m"
-	"github.com/tarm/serial"
-	"flag"
-	"time"
-	"log"
-)
-
-func main() {
-	var opt_port = flag.String("port", "COM1", "Serial port")
-	var opt_id = flag.Int("id", 0, "servo id")
-	flag.Parse()
-
-	id := byte(*opt_id)
-
-	s, err := serial.OpenPort(&serial.Config{Name: *opt_port, Baud: 1500000})
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	servo := b3m.New(s).GetServo(id)
-
-	err = servo.WriteMem(0x23, []byte{0x88})
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	err = servo.WriteMem(0x20, []byte{0x77})
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	axd := 0
-	ayd := 0
-	azd := 0
-
-	for {
-		acc, err := servo.ReadMem(0x28, 6)
-		if err != nil {
-			log.Printf("error %v", err)
-		} else {
-			ax := int(acc[0] >> 4)  + int(int8(acc[1])) << 4 + axd
-			ay := int(acc[2] >> 4)  + int(int8(acc[3])) << 4 + ayd
-			az := int(acc[4] >> 4)  + int(int8(acc[5])) << 4 + azd
-			log.Printf("Acc: \t %v\t %v\t %v", ax, ay, az)
-		}
-		time.Sleep(20 * time.Millisecond)
-	}
-	log.Printf("ok")
-}
-```
+- [sample.go](sample.go)
+- https://github.com/binzume/gob3m を使っています
 
 GetServo()とかしてますがサーボモータではないので加速度の値が取れます．
 
+
+## ライセンス
+
+Copyright 2016 Kousuke Kawahira
+
+Released under the MIT license
 
