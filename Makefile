@@ -5,8 +5,8 @@ F_CPU=12000000
 AVR_WRITER=hidspx
 AVR_WRITER_OPT=-ph
 
-APP=acc
-SRCS=acc.c
+APP=sensor
+SRCS=sensor.c
 ELF=$(APP).elf
 
 all: $(APP).hex

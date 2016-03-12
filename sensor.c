@@ -8,6 +8,13 @@
 #define UART_BAUD 1500000
 #define UART_TIMEOUT 100
 
+#define SENSOR1_CS PB1
+#define SENSOR1_OFFSET (0x10)
+#define SENSOR1_SIZE 0x40
+#define SENSOR2_CS PB2
+#define SENSOR2_OFFSET (0x10 + 0x40)
+#define SENSOR2_SIZE 0x40
+
 static void delay_ms(uint16_t w){
     while (w-->0) _delay_ms(1);
 }
@@ -17,25 +24,25 @@ static void delay_ms(uint16_t w){
 // SPI util
 
 void SPI_init_master() {
-    DDRB |= (1<<PB3) | (1<<PB2) | (1<<PB5); // MOSI, SS, SCK
+    PORTB |= (1<<SENSOR1_CS) | (1<<SENSOR2_CS); // disable chips
+    DDRB |= (1<<PB5) | (1<<PB3) | (1<<SENSOR1_CS) | (1<<SENSOR2_CS); // SCK, MOSI, SS
     DDRB &= ~((1<<PB4));  // MISO
-    PORTB |= (1<<PB2);
     SPCR = (1<<SPE)|(1<<MSTR) | (1<<SPR1);
 }
 
-uint8_t lis3dh_read8(uint8_t addr) {
-    PORTB &= ~(1<<PB2);
+uint8_t lis3dh_read8(uint8_t addr, uint8_t cs) {
+    PORTB &= ~(1<<cs);
     _delay_us(10);
     SPDR = addr | 0x80;
     while(!(SPSR & (1 << SPIF)));
     SPDR = 0;
     while(!(SPSR & (1 << SPIF)));
-    PORTB |= (1<<PB2);
+    PORTB |= (1<<cs);
     return SPDR;
 }
 
-void lis3dh_read(uint8_t *buf, uint8_t addr, uint8_t sz) {
-    PORTB &= ~(1<<PB2);
+void lis3dh_read(uint8_t *buf, uint8_t addr, uint8_t sz, uint8_t cs) {
+    PORTB &= ~(1<<cs);
     _delay_us(10);
 
     SPDR = addr | 0xC0;
@@ -48,12 +55,12 @@ void lis3dh_read(uint8_t *buf, uint8_t addr, uint8_t sz) {
         buf++;
     }
 
-    PORTB |= (1<<PB2);
+    PORTB |= (1<<cs);
 }
 
 
-void lis3dh_write(uint8_t *buf, uint8_t addr, uint8_t sz) {
-    PORTB &= ~(1<<PB2);
+void lis3dh_write(uint8_t *buf, uint8_t addr, uint8_t sz, uint8_t cs) {
+    PORTB &= ~(1<<cs);
     _delay_us(10);
 
     SPDR = addr | 0x40;
@@ -66,7 +73,7 @@ void lis3dh_write(uint8_t *buf, uint8_t addr, uint8_t sz) {
         buf++;
     }
 
-    PORTB |= (1<<PB2);
+    PORTB |= (1<<cs);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -185,8 +192,10 @@ int main(void) {
                         len = buf[4];
                         if (addr == 0) {
                             buf[4] = device_id;
-                        } else if (addr < 0x40) {
-                            lis3dh_read(&buf[4], addr, len);
+                        } else if (addr >= SENSOR1_OFFSET && addr < SENSOR1_OFFSET + SENSOR1_SIZE) {
+                            lis3dh_read(&buf[4], addr - SENSOR1_OFFSET, len, SENSOR1_CS);
+                        } else if (addr >= SENSOR2_OFFSET && addr < SENSOR2_OFFSET + SENSOR2_SIZE) {
+                            lis3dh_read(&buf[4], addr - SENSOR2_OFFSET, len, SENSOR2_CS);
                         } else if (addr >= 0xA2) {
                             for (uint8_t i = 0; i < len; i++) {
                                 buf[4+i] = pgm_read_byte(&pgm_version[i]);
@@ -201,13 +210,15 @@ int main(void) {
                             buf[len + 4] += buf[i];
                         }
                         writeBytes(buf, buf[0]);
-                    } else if (buf[0] == CMD_WRITE){
+                    } else if (buf[0] == CMD_WRITE) {
                         if (buf[len-2] == 1) { // TODO multi mode.
                             uint8_t addr = buf[len-3];
                             if (addr == 0) {
                                 device_id = buf[3];
-                            } else {
-                                lis3dh_write(&buf[3], addr, len - 6);
+                            } else if (addr >= SENSOR1_OFFSET && addr < SENSOR1_OFFSET + SENSOR1_SIZE) {
+                                lis3dh_write(&buf[3], addr - SENSOR1_OFFSET, len - 6, SENSOR1_CS);
+                            } else if (addr >= SENSOR2_OFFSET && addr < SENSOR2_OFFSET + SENSOR2_SIZE) {
+                                lis3dh_write(&buf[3], addr - SENSOR2_OFFSET, len - 6, SENSOR2_CS);
                             }
                             buf[0] = 5;
                             buf[1] = 0x80 | CMD_WRITE;
@@ -216,14 +227,14 @@ int main(void) {
                             buf[4] = 5 + (0x80 | CMD_WRITE) + device_id; // sum
                             writeBytes(buf, buf[0]);
                         }
-                    } else if (buf[0] == CMD_LOAD){
+                    } else if (buf[0] == CMD_LOAD) {
                         buf[0] = 5;
                         buf[1] = 0x80 | CMD_LOAD;
                         buf[2] = 0x00;
                         buf[3] = device_id;
                         buf[4] = 5 + (0x80 | CMD_LOAD) + device_id; // sum
                         writeBytes(buf, buf[0]);
-                    } else if (buf[0] == CMD_SAVE){
+                    } else if (buf[0] == CMD_SAVE) {
                         eeprom_busy_wait();
                         eeprom_update_byte(&eemem_devid, device_id);
                         buf[0] = 5;
@@ -251,7 +262,7 @@ int main(void) {
 
         if (count == 0) {
             if ((PINC & 0x20) == 0) {
-                send_byte(lis3dh_read8(0x0f));
+                send_byte(lis3dh_read8(0x0f, SENSOR2_CS));
                 uart_puts("Hello!\r\n");
 
                 PORTD |= 0x80; // LED1
